@@ -9,7 +9,8 @@ import os
 import sys
 from types import ModuleType
 
-from .version import version as __version__
+# from .version import version as __version__
+__version__ = '1.5'
 
 
 def _py_abspath(path):
@@ -151,10 +152,6 @@ class ApiModule(ModuleType):
             # Ensure __package__ is set. If we have reached this point then
             # this is not a package and __package__ should be set to the parent
             self.__package__ = self.__name__.rpartition('.')[0] or None
-        if not has_path_attr:
-            # Ensure __path__ is set. If we have reached this point then
-            # this is not a package and __path__ should be set to None
-            self.__path__ = None
 
     def __repr__(self):
         repr_list = []
@@ -208,6 +205,9 @@ class ApiModule(ModuleType):
 
 def AliasModule(modname, modpath):
     mod = []
+    pep302_attributes = frozenset([
+        '__name__', '__file__', '__package__', '__path__', '__loader__'
+    ])
 
     def getmod():
         if not mod:
@@ -219,26 +219,34 @@ def AliasModule(modname, modpath):
         def __repr__(self):
             return '<AliasModule %r for %r>' % (modname, modpath)
 
-        def __getattribute__(self, name):
-            if name == '__loader__':
-                raise AttributeError(name)
-            if name in ('__name__', '__package__'):
-                name_attr = ModuleType.__getattribute__(self, '__name__')
-                if name == '__name__':
-                    return name_attr
+        def __getattr__(self, name):
+            if name == '__package__':
+                if not hasattr(self, '__name__'):
+                    raise AttributeError(name)
+                name_attr = self.__name__
                 path_attr = getattr(getmod(), '__path__', None)
                 if path_attr is not None:
                     # module is a package so __package__ == __name__
-                    return name_attr
+                    package = name_attr
                 else:
                     # module is not a package so __package__ is parent __name__
-                    return name_attr.rpartition('.')[0] or None
+                    package = name_attr.rpartition('.')[0] or None
+                setattr(self, name, package)
+                return package
+            if name in pep302_attributes:
+                raise AttributeError(name)
             return getattr(getmod(), name)
 
         def __setattr__(self, name, value):
-            setattr(getmod(), name, value)
+            if name in pep302_attributes:
+                setattr(self, name, value)
+            else:
+                setattr(getmod(), name, value)
 
         def __delattr__(self, name):
-            delattr(getmod(), name)
+            if name in pep302_attributes:
+                delattr(self, name)
+            else:
+                delattr(getmod(), name)
 
     return AliasModule(str(modname))
