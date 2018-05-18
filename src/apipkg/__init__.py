@@ -205,8 +205,8 @@ class ApiModule(ModuleType):
 
 def AliasModule(modname, modpath):
     mod = []
-    pep302_attributes = frozenset([
-        '__name__', '__file__', '__package__', '__path__', '__loader__'
+    pep302_noproxy_attributes = frozenset([
+        '__name__', '__package__', '__loader__'
     ])
 
     def getmod():
@@ -233,18 +233,18 @@ def AliasModule(modname, modpath):
                     package = name_attr.rpartition('.')[0] or None
                 setattr(self, name, package)
                 return package
-            if name in pep302_attributes:
+            if name in pep302_noproxy_attributes:
                 raise AttributeError(name)
             return getattr(getmod(), name)
 
         def __setattr__(self, name, value):
-            if name in pep302_attributes:
+            if name in pep302_noproxy_attributes:
                 setattr(self, name, value)
             else:
                 setattr(getmod(), name, value)
 
         def __delattr__(self, name):
-            if name in pep302_attributes:
+            if name in pep302_noproxy_attributes:
                 delattr(self, name)
             else:
                 delattr(getmod(), name)
