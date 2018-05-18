@@ -155,7 +155,9 @@ class ApiModule(ModuleType):
         if not has_package_attr:
             # Ensure __package__ is set. If we have reached this point then
             # this is not a package and __package__ should be set to the parent
-            self.__package__ = self.__name__.rpartition('.')[0] or None
+            # In Python 2 __package__ is None for a top-level package, but in
+            # Python 3 it is ''
+            self.__package__ = self.__name__.rpartition('.')[0] or sys.__package__
 
     def __repr__(self):
         repr_list = []
@@ -239,11 +241,13 @@ def AliasModule(modname, modpath):
                     raise AttributeError(name)
                 path_attr = getattr(getmod(), '__path__', None)
                 if path_attr is not None:
-                    # module is a package so __package__ == __name__
+                    # Module is a package so __package__ == __name__
                     package = name_attr
                 else:
-                    # module is not a package so __package__ is parent __name__
-                    package = name_attr.rpartition('.')[0] or None
+                    # Module is not a package so __package__ is parent __name__
+                    # In Python 2 __package__ is None for a top-level package,
+                    # but in Python 3 it is ''
+                    package = name_attr.rpartition('.')[0] or sys.__package__
                 setattr(self, name, package)
                 return package
             if name in pep302_noproxy_attributes:
