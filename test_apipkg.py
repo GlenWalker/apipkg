@@ -63,7 +63,7 @@ class TestRealModule:
 
     def test_realmodule_repr(self):
         import realtest.x
-        assert "<ApiModule 'realtest.x'>" == repr(realtest.x)
+        assert "<ApiModule 'realtest.x' from '<apipkg-api-module>'>" == repr(realtest.x)
 
     def test_realmodule_from(self):
         from realtest.x import module
@@ -139,7 +139,8 @@ class TestScenarios:
         monkeypatch.syspath_prepend(tmpdir)
         import aliasimport
         for k, v in py.std.os.path.__dict__.items():
-            assert getattr(aliasimport.some, k) == v
+            if k not in ('__name__', '__package__', '__loader__'):
+                assert getattr(aliasimport.some, k) == v
 
     def test_from_module_alias_import(self, monkeypatch, tmpdir):
         pkgdir = tmpdir.mkdir("fromaliasimport")
@@ -233,11 +234,11 @@ def test_initpkg_transfers_attrs(monkeypatch):
     apipkg.initpkg('hello', {})
     newmod = sys.modules['hello']
     assert newmod != mod
-    assert newmod.__file__ == py.path.local(mod.__file__)
-    assert newmod.__version__ == mod.__version__
-    assert newmod.__loader__ == mod.__loader__
-    assert newmod.__package__ == mod.__package__
-    assert newmod.__doc__ == mod.__doc__
+    assert newmod.__file__ == "hello.py"
+    assert newmod.__version__ == 10
+    assert newmod.__loader__ == "loader"
+    assert newmod.__package__ == "package"
+    assert newmod.__doc__ == "this is the documentation"
 
 
 def test_initpkg_nodoc(monkeypatch):
@@ -442,19 +443,12 @@ def test_extra_attributes(tmpdir, monkeypatch):
     assert extra_attributes.foo == 'bar'
 
 
-def test_aliasmodule_aliases_an_attribute():
-    am = apipkg.AliasModule("mymod", "pprint", 'PrettyPrinter')
-    r = repr(am)
-    assert "<AliasModule 'mymod' for 'pprint.PrettyPrinter'>" == r
-    assert am.format
-    assert not hasattr(am, "lqkje")
-
-
 def test_aliasmodule_aliases_unimportable():
-    am = apipkg.AliasModule("mymod", "qlwkejqlwe", 'main')
+    am = apipkg.AliasModule("mymod", "qlwkejqlwe")
     r = repr(am)
-    assert "<AliasModule 'mymod' for 'qlwkejqlwe.main'>" == r
-    assert am.qwe is None
+    assert "<AliasModule 'mymod' for 'qlwkejqlwe'>" == r
+    with pytest.raises(ImportError):
+        am.qwe
 
 
 def test_aliasmodule_unicode():

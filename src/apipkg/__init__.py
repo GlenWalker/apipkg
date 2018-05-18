@@ -50,7 +50,10 @@ def initpkg(pkgname, exportdefs, attr=None, eager=False):
     if hasattr(oldmod, '__loader__'):
         d['__loader__'] = oldmod.__loader__
     if hasattr(oldmod, '__path__'):
-        d['__path__'] = [_py_abspath(p) for p in oldmod.__path__]
+        if oldmod.__path__:
+            d['__path__'] = [_py_abspath(p) for p in oldmod.__path__]
+        else:
+            d['__path__'] = oldmod.__path__
     if hasattr(oldmod, '__package__'):
         d['__package__'] = oldmod.__package__
     if '__doc__' not in exportdefs and getattr(oldmod, '__doc__', None):
@@ -100,10 +103,20 @@ class ApiModule(ModuleType):
         self.__implprefix__ = implprefix or name
         if attr:
             for name, val in attr.items():
-                # print "setting", self.__name__, name, val
                 setattr(self, name, val)
+        has_file_attr = attr and '__file__' in attr
+        has_package_attr = attr and '__package__' in attr
+        has_path_attr = attr and '__path__' in attr
+        attribute_modpaths = set()
         for name, importspec in importspec.items():
             if isinstance(importspec, dict):
+                # This module has submodules and is therefore a package
+                if not has_package_attr:
+                    setattr(self, '__package__', self.__name__)
+                    has_package_attr = True
+                if not has_path_attr:
+                    setattr(self, '__path__', [])
+                    has_path_attr = True
                 subname = '%s.%s' % (self.__name__, name)
                 apimod = ApiModule(subname, importspec, implprefix)
                 sys.modules[subname] = apimod
@@ -123,6 +136,25 @@ class ApiModule(ModuleType):
                         setattr(self, name, apimod)
                 else:
                     self.__map__[name] = (modpath, attrname)
+                    if name != '__onfirstaccess__':
+                        attribute_modpaths.add(modpath)
+        if not has_file_attr:
+            # Ensure __file__ attribute is set.
+            if len(attribute_modpaths) == 1:
+                # Special case: all attributes come from same module so it is
+                # accurate to use __file__ from that module for this one
+                self.__map__['__file__'] = (attribute_modpaths.pop(), '__file__')
+            else:
+                # Use a value linecache (and traceback) will handle nicely
+                self.__file__ = '<apipkg-api-module>'
+        if not has_package_attr:
+            # Ensure __package__ is set. If we have reached this point then
+            # this is not a package and __package__ should be set to the parent
+            self.__package__ = self.__name__.rpartition('.')[0] or None
+        if not has_path_attr:
+            # Ensure __path__ is set. If we have reached this point then
+            # this is not a package and __path__ should be set to None
+            self.__path__ = None
 
     def __repr__(self):
         repr_list = []
@@ -136,7 +168,6 @@ class ApiModule(ModuleType):
 
     def __makeattr(self, name):
         """lazily compute value for name or raise AttributeError if unknown."""
-        # print "makeattr", self.__name__, name
         target = None
         if '__onfirstaccess__' in self.__map__:
             target = self.__map__.pop('__onfirstaccess__')
@@ -175,30 +206,34 @@ class ApiModule(ModuleType):
         return dict
 
 
-def AliasModule(modname, modpath, attrname=None):
+def AliasModule(modname, modpath):
     mod = []
 
     def getmod():
         if not mod:
-            x = importobj(modpath, None)
-            if attrname is not None:
-                x = getattr(x, attrname)
-            mod.append(x)
+            mod.append(importobj(modpath, None))
         return mod[0]
 
     class AliasModule(ModuleType):
 
         def __repr__(self):
-            x = modpath
-            if attrname:
-                x += "." + attrname
-            return '<AliasModule %r for %r>' % (modname, x)
+            return '<AliasModule %r for %r>' % (modname, modpath)
 
         def __getattribute__(self, name):
-            try:
-                return getattr(getmod(), name)
-            except ImportError:
-                return None
+            if name == '__loader__':
+                raise AttributeError(name)
+            if name in ('__name__', '__package__'):
+                name_attr = ModuleType.__getattribute__(self, '__name__')
+                if name == '__name__':
+                    return name_attr
+                path_attr = getattr(getmod(), '__path__', None)
+                if path_attr is not None:
+                    # module is a package so __package__ == __name__
+                    return name_attr
+                else:
+                    # module is not a package so __package__ is parent __name__
+                    return name_attr.rpartition('.')[0] or None
+            return getattr(getmod(), name)
 
         def __setattr__(self, name, value):
             setattr(getmod(), name, value)
