@@ -43,7 +43,7 @@ def initpkg(pkgname, exportdefs, attr=None, eager=False):
     oldmod = sys.modules.get(pkgname)
     d = {}
     for name in ('__file__', '__cached__'):
-        try::
+        try:
             f = getattr(oldmod, name)
         except AttributeError:
             pass
