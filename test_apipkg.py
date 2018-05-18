@@ -271,7 +271,7 @@ def test_initpkg_not_transfers_not_existing_attrs(monkeypatch):
     newmod = sys.modules['hello']
     assert newmod != mod
     assert newmod.__file__ == py.path.local(mod.__file__)
-    assert newmod.__path__ is None
+    assert not hasattr(newmod, '__path__')
     assert newmod.__package__ is None
 
 
