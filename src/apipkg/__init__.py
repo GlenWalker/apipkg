@@ -251,13 +251,13 @@ def AliasModule(modname, modpath):
 
         def __setattr__(self, name, value):
             if name in pep302_noproxy_attributes:
-                ModuleType.setattr(self, name, value)
+                ModuleType.__setattr__(self, name, value)
             else:
                 setattr(getmod(), name, value)
 
         def __delattr__(self, name):
             if name in pep302_noproxy_attributes:
-                ModuleType.delattr(self, name)
+                ModuleType.__delattr__(self, name)
             else:
                 delattr(getmod(), name)
 
