@@ -219,11 +219,20 @@ def AliasModule(modname, modpath):
         def __repr__(self):
             return '<AliasModule %r for %r>' % (modname, modpath)
 
-        def __getattr__(self, name):
+        # We have to use __getattribute__ and not __getattr__ in order to proxy
+        # the __doc__ attribute. ModuleType instances always have a __doc__
+        # attribute, even after delattr removes it from __dict__
+        def __getattribute__(self, name):
+            object_dict = ModuleType.__getattribute__(self, '__dict__')
             if name == '__package__':
-                if not hasattr(self, '__name__'):
+                try:
+                    return object_dict[name]
+                except KeyError:
+                    pass
+                try:
+                    name_attr = object_dict['__name__']
+                except KeyError:
                     raise AttributeError(name)
-                name_attr = self.__name__
                 path_attr = getattr(getmod(), '__path__', None)
                 if path_attr is not None:
                     # module is a package so __package__ == __name__
@@ -234,7 +243,10 @@ def AliasModule(modname, modpath):
                 setattr(self, name, package)
                 return package
             if name in pep302_noproxy_attributes:
-                raise AttributeError(name)
+                try:
+                    return object_dict[name]
+                except KeyError:
+                    raise AttributeError(name)
             return getattr(getmod(), name)
 
         def __setattr__(self, name, value):
