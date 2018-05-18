@@ -234,7 +234,7 @@ def test_initpkg_transfers_attrs(monkeypatch):
     apipkg.initpkg('hello', {})
     newmod = sys.modules['hello']
     assert newmod != mod
-    assert newmod.__file__ == "hello.py"
+    assert newmod.__file__ == py.path.local("hello.py")
     assert newmod.__version__ == 10
     assert newmod.__loader__ == "loader"
     assert newmod.__package__ == "package"
@@ -264,14 +264,15 @@ def test_initpkg_not_transfers_not_existing_attrs(monkeypatch):
     mod = ModuleType('hello')
     mod.__file__ = "hello.py"
     assert not hasattr(mod, '__path__')
-    assert not hasattr(mod, '__package__') or mod.__package__ is None
+    has_package = hasattr(mod, '__package__')
+    assert not has_package or mod.__package__ is None
     monkeypatch.setitem(sys.modules, 'hello', mod)
     apipkg.initpkg('hello', {})
     newmod = sys.modules['hello']
     assert newmod != mod
     assert newmod.__file__ == py.path.local(mod.__file__)
-    assert not hasattr(newmod, '__path__')
-    assert not hasattr(newmod, '__package__') or mod.__package__ is None
+    assert newmod.__path__ is None
+    assert newmod.__package__ is None
 
 
 def test_initpkg_not_changing_jython_paths(monkeypatch):
